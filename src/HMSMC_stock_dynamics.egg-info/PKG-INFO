@@ -1,0 +1,21 @@
+Metadata-Version: 2.2
+Name: HMSMC_stock_dynamics
+Version: 0.1.0
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.6
+Requires-Dist: torch
+Requires-Dist: pandas
+Requires-Dist: scikit-learn
+Requires-Dist: pywavelets
+Requires-Dist: yfinance
+Requires-Dist: tiingo
+Requires-Dist: matplotlib
+Requires-Dist: seaborn
+Requires-Dist: tqdm
+Requires-Dist: jupyter
+Requires-Dist: scipy
+Dynamic: classifier
+Dynamic: requires-dist
+Dynamic: requires-python

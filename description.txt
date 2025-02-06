@@ -1,0 +1,74 @@
+project/
+│
+├── config/
+│   └── config.py               # Contains all global hyperparameters and configuration settings.
+│                               # Key features:
+│                               #  - Data paths, model selection (LSTM or MZ), and attention options.
+│                               #  - Noise distribution type and parameters.
+│                               #  - Regularisation weights and grid search parameters.
+│                               #  **Guidance:** Update this file before running experiments.
+│
+├── data/
+│   ├── data_loader.py          # Loads and preprocesses the multidimensional time series data.
+│   │                           # Key steps:
+│   │                           #  - Read raw data (e.g., from CSV).
+│   │                           #  - Clean, normalize, and extract features.
+│   │                           #  **Guidance:** Extend this module for custom data formats or additional preprocessing.
+│   └── wavelet_decomposition.py# Implements optional wavelet decomposition and inversion.
+│                               # Key features:
+│                               #  - Decomposes the time series into frequency bands using a specified wavelet.
+│                               #  - Inversion function to reconstruct the original signal.
+│                               #  **Guidance:** Modify the wavelet type if needed; when disabled, inversion returns identity.
+│
+├── models/
+│   ├── lstm_model.py           # Implements the LSTM model with an optional attention mechanism.
+│   │                           # Key features:
+│   │                           #  - Uses PyTorch’s LSTMCell (or a custom LSTM cell) for state updates.
+│   │                           #  - Extracts internal gates (e.g., forget gate product for \(\alpha\)) and optional attention weights (\(\beta\)).
+│   │                           #  - Exposes internal states via hooks for later analysis.
+│   │                           #  **Guidance:** Ensure attention mechanism is correctly integrated; verify hook outputs.
+│   ├── mz_model.py             # Implements the coupled Mori–Zwanzig model.
+│   │                           # Key features:
+│   │                           #  - Defines an instantaneous operator as an MLP.
+│   │                           #  - Implements a learnable memory kernel \(K_\phi\) and a dynamic coupling \(G_\psi\) split into self and cross parts.
+│   │                           #  **Guidance:** Parameterize kernel and coupling functions carefully; validate matrix decompositions.
+│   ├── residual_noise.py       # Provides functions to sample residual noise from configurable distributions.
+│   │                           # Key features:
+│   │                           #  - Supports normal, log-normal, Poisson, and heavy–tailed distributions.
+│   │                           #  **Guidance:** Extend or modify distributions by editing this module.
+│   └── readout_layer.py        # Defines the modular read-out layer that maps from latent representations ([H; C]) to state updates.
+│                               # Key features:
+│                               #  - Decomposes the weight matrix into \(W_{\text{self}}\) and \(W_{\text{cross}}\).
+│                               #  - Provides extraction hooks for these matrices.
+│                               #  **Guidance:** Implement masking if enforcing strict diagonal structure on \(W_{\text{self}}\) is required.
+│
+├── losses/
+│   ├── loss_functions.py       # Contains standard forecasting loss functions (e.g., MSE).
+│   │                           # **Guidance:** Add custom losses as needed.
+│   └── regularizers.py         # Implements regularisers for smoothness (memory kernel) and sparsity (graph of connections).
+│                               # **Guidance:** Tune regularisation weights in config; add more constraints if necessary.
+│
+├── experiments/
+│   ├── train.py                # Main training loop that integrates all modules.
+│   │                           # Key steps:
+│   │                           #  - Loads and preprocesses data.
+│   │                           #  - Generates sequences (sliding window approach).
+│   │                           #  - Trains the model with loss computation and regularisation.
+│   │                           #  - Extracts and logs internal matrices via hooks.
+│   │                           #  **Guidance:** Verify the training loop and logging outputs for consistency.
+│   └── hyperparameter_tuning.py# Implements grid search for hyperparameter tuning.
+│                               # Key features:
+│                               #  - Iterates over hyperparameter combinations.
+│                               #  - Instantiates models, runs training, and logs performance.
+│                               #  **Guidance:** Update the parameter grid in config as needed.
+│
+├── utils/
+│   └── logger.py               # Provides logging utilities to record experiment progress, loss curves, and key parameters.
+│                               # **Guidance:** Customize the logging format for your experiment tracking.
+│
+└── main.py                     # Main entry point for the codebase.
+                                # Key features:
+                                #  - Loads configuration.
+                                #  - Instantiates the appropriate model (LSTM or MZ).
+                                #  - Initiates training or hyperparameter tuning.
+                                #  **Guidance:** Use this file to start experiments; ensure all configurations are set correctly.
