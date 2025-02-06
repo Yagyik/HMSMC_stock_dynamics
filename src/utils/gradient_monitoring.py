@@ -1,84 +1,83 @@
-# FILE: HMSMC_stock_dynamics/src/utils/gradient_monitoring.py
+# project/utils/gradient_monitoring.py
+# ------------------------------------
+# This file provides classes or functions to monitor gradients during training.
+# A typical use case is to register hooks on model parameters to log gradient norms
+# or detect exploding/vanishing gradients. The code below illustrates a simple
+# "GradientMonitor" class.
 
 import torch
-import torch.nn as nn
-import torch.optim as optim
-import numpy as np
-import logging
 
 class GradientMonitor:
-    def __init__(self, model, clip_value=1.0):
-        self.model = model
-        self.clip_value = clip_value
-        self.logger = logging.getLogger(__name__)
+    """
+    A utility class that registers backward hooks on a model’s parameters
+    to monitor gradient statistics such as mean, std, or max norm.
+    """
+    def __init__(self):
+        self.gradient_stats = []
 
-    def log_gradient_norms(self):
-        total_norm = 0
-        for p in self.model.parameters():
-            if p.grad is not None:
-                param_norm = p.grad.data.norm(2)
-                total_norm += param_norm.item() ** 2
-        total_norm = total_norm ** 0.5
-        self.logger.info(f'Gradient Norm: {total_norm:.4f}')
+    def register_hooks(self, model):
+        """
+        Register hooks on the model’s parameters to collect gradient stats after backprop.
+        Args:
+            model: A PyTorch nn.Module
+        """
+        for name, param in model.named_parameters():
+            if param.requires_grad:
+                param.register_hook(self._make_hook(name))
 
-    def log_gradient_statistics(self):
-        for name, param in self.model.named_parameters():
-            if param.grad is not None:
-                grad_mean = param.grad.mean().item()
-                grad_std = param.grad.std().item()
-                self.logger.info(f'{name} - Grad Mean: {grad_mean:.4f}, Grad Std: {grad_std:.4f}')
+    def _make_hook(self, param_name):
+        """
+        Returns a hook function that computes stats from gradients.
+        """
+        def hook(grad):
+            # Compute gradient statistics
+            grad_norm = grad.norm(p=2).item()
+            grad_mean = grad.mean().item()
+            grad_std = grad.std().item()
 
-    def track_gradient_histograms(self, writer, step):
-        for name, param in self.model.named_parameters():
-            if param.grad is not None:
-                writer.add_histogram(f'{name}_grad', param.grad, step)
+            self.gradient_stats.append({
+                "param_name": param_name,
+                "grad_norm": grad_norm,
+                "grad_mean": grad_mean,
+                "grad_std": grad_std
+            })
+        return hook
 
-    def apply_gradient_clipping(self):
-        torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clip_value)
+    def reset(self):
+        """ Reset the stored gradient stats. """
+        self.gradient_stats = []
 
-    def initialize_weights(self):
-        for m in self.model.modules():
-            if isinstance(m, nn.Linear):
-                nn.init.kaiming_normal_(m.weight)
-                if m.bias is not None:
-                    nn.init.constant_(m.bias, 0)
+    def get_stats(self):
+        """ Return a list of collected gradient statistics. """
+        return self.gradient_stats
 
-    def regularize_mori_zwanzig_kernel(self, kernel_network, regularization_weight=0.01):
-        regularization_loss = 0
-        for param in kernel_network.parameters():
-            regularization_loss += torch.norm(param, p=2)
-        return regularization_weight * regularization_loss
+if __name__ == "__main__":
+    # Example usage
+    import torch.nn as nn
 
-def get_optimizer(model, optimizer_type='adam', learning_rate=0.001):
-    if optimizer_type == 'adam':
-        return optim.Adam(model.parameters(), lr=learning_rate)
-    elif optimizer_type == 'sgd':
-        return optim.SGD(model.parameters(), lr=learning_rate, momentum=0.9)
-    elif optimizer_type == 'rmsprop':
-        return optim.RMSprop(model.parameters(), lr=learning_rate)
-    else:
-        raise ValueError(f'Unsupported optimizer type: {optimizer_type}')
+    class SimpleModel(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.lin = nn.Linear(10, 1)
+        def forward(self, x):
+            return self.lin(x)
 
-def train_model_with_monitoring(model, train_loader, criterion, optimizer, num_epochs, kernel_network, writer):
-    monitor = GradientMonitor(model)
-    monitor.initialize_weights()
+    model = SimpleModel()
+    grad_monitor = GradientMonitor()
+    grad_monitor.register_hooks(model)
 
-    for epoch in range(num_epochs):
-        model.train()
-        total_loss = 0
-        for step, batch in enumerate(train_loader):
-            optimizer.zero_grad()
-            inputs, targets = batch['inputs'], batch['targets']
-            outputs = model(inputs)
-            loss = criterion(outputs, targets)
-            regularization_loss = monitor.regularize_mori_zwanzig_kernel(kernel_network)
-            total_loss = loss + regularization_loss
-            total_loss.backward()
-            monitor.apply_gradient_clipping()
-            optimizer.step()
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
+    x = torch.randn(5, 10)
+    y = torch.randn(5, 1)
 
-            monitor.log_gradient_norms()
-            monitor.log_gradient_statistics()
-            monitor.track_gradient_histograms(writer, step)
+    for epoch in range(2):
+        grad_monitor.reset()
+        optimizer.zero_grad()
+        preds = model(x)
+        loss = (preds - y).pow(2).mean()
+        loss.backward()
+        optimizer.step()
 
-        print(f'Epoch {epoch+1}, Loss: {total_loss.item():.4f}')
+        # Access gradient statistics
+        stats = grad_monitor.get_stats()
+        print(f"Epoch {epoch}: Collected gradient stats = {stats}")
