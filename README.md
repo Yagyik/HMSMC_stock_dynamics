@@ -1,3 +1,31 @@
+# **To Use:**
+
+# 1) Set up environment in parent of HMSMC_stock_dynamics
+   #!/bin/bash
+   rm -rf finance-venv
+   
+   a) Create virtual environment
+   python -m venv finance-venv
+   
+   b) Activate virtual environment
+   source finance-venv/bin/activate
+   
+   c) Install requirements
+   pip install -r HMSMC_stock_dynamics/requirements.txt
+   
+   echo "Virtual environment 'finance-venv' created and requirements installed."
+
+# 2) Generate predictions and visualise
+   
+a) Run from parent of HMSMC_stock_dynamics (check paths)
+
+   python3 HMSMC_stock_dynamics/predict.py --model_path HMSMC_stock_dynamics/logs/best_model.pth --train_data_path tiingo_downloader/dataset_extensive/NYSE_1_Jan_2016_to_1_Jan_2024_1min/ --test_data_path tiingo_downloader/dataset_extensive_test/NYSE_2_Jan_2024_to_31_Dec_2024_1min/ --seq_lens 500 --columns 1 --output_dir test_outputs/
+ 
+b) Check the predictions vs actuals in test_output/results_<seq_len>.csv
+
+
+# ------ background ----- 
+
 # Stock Market Forecasting Codebase
 
 This codebase implements a unified framework for stock market time-series forecasting using two complementary approaches:
