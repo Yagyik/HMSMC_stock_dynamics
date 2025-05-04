@@ -3,6 +3,7 @@
 # 1) Set up environment in parent of HMSMC_stock_dynamics
    #!/bin/bash
    rm -rf finance-venv
+   
    a) Create virtual environment
    python -m venv finance-venv
    
