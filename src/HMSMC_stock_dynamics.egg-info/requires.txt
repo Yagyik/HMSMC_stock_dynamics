@@ -9,3 +9,5 @@ seaborn
 tqdm
 jupyter
 scipy
+pyarrow
+fastparquet

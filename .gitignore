@@ -3,8 +3,6 @@
 __pycache__/
 
 # Ignore virtual environment directories
-venv/
-finance-venv/
 
 # Ignore Jupyter Notebook checkpoints
 .ipynb_checkpoints/
@@ -17,10 +15,13 @@ logs/
 # Ignore data files
 datasets/raw/
 datasets/processed/
+dist/
+build/
+data_downloader.py
 
 # Ignore model files
-*.pkl
-*.h5
+# *.pkl
+# *.h5
 
 # Ignore system files
 .DS_Store

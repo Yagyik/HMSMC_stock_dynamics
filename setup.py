@@ -19,6 +19,8 @@ setup(
         'tqdm',
         'jupyter',
         'scipy',
+        'pyarrow',
+        'fastparquet'
         # Add other dependencies here
     ],
     entry_points={

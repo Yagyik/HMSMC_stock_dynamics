@@ -20,6 +20,8 @@
 #   - Use the get_weights() method to retrieve W_self and W_cross after training for analysis.
 
 import torch
+import numpy as np
+import os
 import torch.nn as nn
 
 class ReadOutLayer(nn.Module):
@@ -69,7 +71,7 @@ class ReadOutLayer(nn.Module):
         Returns:
             W_self, W_cross (ndarray, ndarray): Numpy arrays for the self and cross weight matrices.
         """
-        return self.W_self.detach().cpu().numpy(), self.W_cross.detach().cpu().numpy()
+        return self.W_self.detach().cpu().numpy(),self.W_cross.detach().cpu().numpy()
 
 if __name__ == "__main__":
     # Example usage:
@@ -80,9 +82,23 @@ if __name__ == "__main__":
     
     readout = ReadOutLayer(input_dim, output_dim)
     output = readout(dummy_input)
-    print("Output shape:", output.shape)
+    # print("Output shape:", output.shape)
     
     # Extract and display the weight matrices.
     W_self, W_cross = readout.get_weights()
-    print("W_self shape:", W_self.shape)
-    print("W_cross shape:", W_cross.shape)
+    # print("W_self shape:", W_self.shape)
+    # print("W_cross shape:", W_cross.shape)
+
+    # Define output directory for CSV files
+    output_dir = "/home/yagyik/Dropbox/finance_trials/HMSMC_repo_and_aux/HMSMC_stock_dynamics/weights"
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Write W_self to a CSV file
+    W_self_path = os.path.join(output_dir, "W_self.csv")
+    np.savetxt(W_self_path, W_self, delimiter=",")
+    print(f"W_self saved to {W_self_path}")
+
+    # Write W_cross to a CSV file
+    W_cross_path = os.path.join(output_dir, "W_cross.csv")
+    np.savetxt(W_cross_path, W_cross, delimiter=",")
+    print(f"W_cross saved to {W_cross_path}")

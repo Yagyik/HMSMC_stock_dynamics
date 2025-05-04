@@ -9,56 +9,35 @@
 import csv
 import json
 import os
+from torch.utils.tensorboard import SummaryWriter
 
 class TrainingLogger:
-    """
-    A flexible logger for capturing metrics (e.g., loss, test_loss) at each epoch
-    or iteration. You can choose to store logs in memory only or also save them to disk.
-    """
-    def __init__(self, save_dir=None, file_format="csv"):
-        """
-        Args:
-            save_dir (str): Directory to save log files. If None, logs are kept in memory only.
-            file_format (str): "csv" or "json" for saving logs to disk.
-        """
+    def __init__(self,save_dir="logs"):
+        self.logs = []
         self.save_dir = save_dir
-        self.file_format = file_format
-        self.logs = []  # list of dicts, each dict is e.g. {"epoch":1, "train_loss":..., "test_loss":...}
+        self.writer = SummaryWriter(self.save_dir)  # Initialize TensorBoard writer
 
-        if self.save_dir is not None:
-            os.makedirs(self.save_dir, exist_ok=True)
+    def log_metrics(self, metrics, step):
+        """
+        Log metrics to internal logs and TensorBoard.
+        """
+        self.logs.append((step, metrics))
+        for key, value in metrics.items():
+            self.writer.add_scalar(key, value, step)  # Log to TensorBoard
 
-    def log_metrics(self, metrics_dict):
+    def save_logs(self, filename):
         """
-        Append a dictionary of metrics to the logs.
-        e.g., metrics_dict = {"epoch":1, "train_loss": 0.2, "test_loss": 0.3}
+        Save logs to a file.
         """
-        self.logs.append(metrics_dict)
+        with open(filename, "w") as f:
+            for step, metrics in self.logs:
+                f.write(f"Step {step}: {metrics}\n")
 
-    def save_logs(self, filename="training_logs"):
+    def close(self):
         """
-        Save the in-memory logs to a file in the specified format (csv or json).
+        Close the TensorBoard writer.
         """
-        if self.save_dir is None:
-            print("save_dir is None, logs are not saved to disk.")
-            return
-        path = os.path.join(self.save_dir, f"{filename}.{self.file_format}")
-        if self.file_format == "csv":
-            keys = self.logs[0].keys() if len(self.logs) > 0 else []
-            with open(path, "w", newline="") as f:
-                writer = csv.DictWriter(f, fieldnames=keys)
-                writer.writeheader()
-                for row in self.logs:
-                    writer.writerow(row)
-        elif self.file_format == "json":
-            with open(path, "w") as f:
-                json.dump(self.logs, f, indent=2)
-        else:
-            print(f"Unsupported file format: {self.file_format}")
-
-    def get_logs(self):
-        """ Return the in-memory list of metrics dicts. """
-        return self.logs
+        self.writer.close()
 
 if __name__ == "__main__":
     logger = TrainingLogger(save_dir="logs", file_format="csv")

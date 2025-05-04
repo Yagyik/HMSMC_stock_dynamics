@@ -25,7 +25,10 @@ class LSTMWithAttention(nn.Module):
         super(LSTMWithAttention, self).__init__()
         self.config = config
         input_dim = config.LSTM_INPUT_DIM
+        self.input_dim = input_dim
         hidden_dim = config.LSTM_HIDDEN_DIM
+        self.hidden_dim = hidden_dim
+        self.output_dim = config.LSTM_INPUT_DIM
         self.use_attention = config.USE_ATTENTION
 
         # Single-layer LSTMCell
@@ -147,11 +150,11 @@ if __name__ == "__main__":
     
     model = LSTMWithAttention(config)
     X_next, internal_states = model(dummy_input)
-    print("Predicted next state shape:", X_next.shape)
-    print("Extracted alpha shape:", internal_states["alpha"].shape)
-    print("Extracted beta shape:", internal_states["beta"].shape)
+    # print("Predicted next state shape:", X_next.shape)
+    # print("Extracted alpha shape:", internal_states["alpha"].shape)
+    # print("Extracted beta shape:", internal_states["beta"].shape)
     
     # Extract read-out weights (for analysis)
     W_self, W_cross = model.extract_readout_weights()
-    print("W_self shape:", W_self.shape)
-    print("W_cross shape:", W_cross.shape)
+    # print("W_self shape:", W_self.shape)
+    # print("W_cross shape:", W_cross.shape)

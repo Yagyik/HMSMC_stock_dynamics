@@ -1,5 +1,6 @@
 # project/experiments/train.py
 # ---------------------------
+import argparse
 import os
 import sys
 import torch
@@ -13,9 +14,11 @@ from torch.utils.data import DataLoader
 # sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), 'src')))
 
 # sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), 'src')))
+sys.path.append('/home/yagyik/Dropbox/finance_trials/HMSMC_repo_and_aux/HMSMC_stock_dynamics')
 
-
-from HMSMC_stock_dynamics.src.config.config_simple import Config
+# print(sys.path)
+# from HMSMC_stock_dynamics.src.config.config_simple import Config
+from HMSMC_stock_dynamics.src.config.config_tiingo_extensive import Config
 from HMSMC_stock_dynamics.src.data.data_loader import TimeSeriesDataset
 from HMSMC_stock_dynamics.src.data.clean_data import DataCleaner
 from HMSMC_stock_dynamics.src.data.feature_engineering import engineer_features
@@ -28,7 +31,7 @@ from HMSMC_stock_dynamics.src.utils.logging import TrainingLogger
 from HMSMC_stock_dynamics.src.utils.visualization import plot_training_curves
 from HMSMC_stock_dynamics.src.utils.misc import set_random_seed
 
-def train_model(config):
+def train_model(config,args):
     """
     Main training function using the pipeline steps:
       - Gradient monitoring (optional)
@@ -43,8 +46,19 @@ def train_model(config):
     set_random_seed(42)
 
     # 5) Load raw data as a DataFrame (via static method) from disk
-    df = TimeSeriesDataset.load_file_to_df(file_path=config.DATA_PATH, source=config.SOURCE_TYPE)
+    # df = TimeSeriesDataset.load_file_to_df(file_path=config.DATA_PATH,
+    #                                         source=config.SOURCE_TYPE)
+    df = TimeSeriesDataset.load_file_to_df(file_path=args.train_data_path,
+                                            source=config.SOURCE_TYPE)
     print(f"Initial DataFrame shape: {df.shape}")
+
+    spam_df = TimeSeriesDataset.load_file_to_df(file_path=args.test_data_path,
+                                            source=config.SOURCE_TYPE)
+    
+    # Keep only columns that are present in both df and spam_df
+    common_columns = df.columns.intersection(spam_df.columns)
+    df = df[common_columns]
+    spam_df = spam_df[common_columns]
 
     # 6) Data Cleaning
     if getattr(config, "PERFORM_CLEANING", False):
@@ -116,10 +130,11 @@ def train_model(config):
         grad_monitor.register_hooks(model)
 
     # 4) Training Logger
-    training_logger = True
+    # training_logger = True
+    # config.USE_TRAINING_LOGGER = True
     if config.USE_TRAINING_LOGGER:
-        # os.makedirs(config.LOG_SAVE_DIR, exist_ok=True)
-        training_logger = TrainingLogger(save_dir=config.LOG_SAVE_DIR, file_format=config.LOG_FILE_FORMAT)
+        os.makedirs(config.LOG_SAVE_DIR, exist_ok=True)
+        training_logger = TrainingLogger(save_dir=config.LOG_SAVE_DIR)
 
 
     train_loader = DataLoader(train_dataset, batch_size=config.BATCH_SIZE, shuffle=True)
@@ -129,6 +144,9 @@ def train_model(config):
 
     # 11) Define optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr=config.LEARNING_RATE)
+
+    best_model = None
+    best_test_loss = float("inf")
 
     # 12) Training Loop
     for epoch in range(1, config.NUM_EPOCHS + 1):
@@ -179,8 +197,12 @@ def train_model(config):
         avg_test_loss = test_loss_sum / len(test_loader) if len(test_loader) > 0 else 0.0
         # print(X_batch_test.shape,X_pred_test.shape)
         print(f"[Epoch {epoch}/{config.NUM_EPOCHS}] "
-              f"Train Loss: {avg_train_loss:.4f} | Test Loss: {avg_test_loss:.4f}")
+              f"Train Loss: {avg_train_loss:.4f} | Test Loss: {avg_test_loss:.6f}")
 
+        if avg_test_loss < best_test_loss:
+            best_test_loss = avg_test_loss
+            best_model = model.state_dict()
+            print(f"Best model saved with test loss: {best_test_loss:.4f}")
         # Log metrics
         if training_logger:
             metrics_dict = {
@@ -199,23 +221,47 @@ def train_model(config):
                     avg_grad_norm = sum(s["grad_norm"] for s in grad_info) / len(grad_info)
                     metrics_dict["avg_grad_norm"] = avg_grad_norm
 
-            training_logger.log_metrics(metrics_dict)
+            training_logger.log_metrics(metrics_dict,step=epoch)
 
     # Save logs
     if training_logger:
         training_logger.save_logs("training_run")
+        training_logger.close()
 
     # Optionally, plot curves if desired:
     # from utils.visualization import plot_training_curves
     # logs = training_logger.get_logs()
     # plot_training_curves(logs, x_key="epoch", y_keys=["train_loss", "test_loss"], title="Training Curves")
 
+    # save the best model to a file
+    best_model_path = os.path.join(config.LOG_SAVE_DIR,
+                                    "best_model.pth")
+    torch.save(best_model, best_model_path)
+    print(f"Best model saved to {best_model_path}")
+    # Optionally, save the model architecture
+    # torch.save(model, os.path.join(config.LOG_SAVE_DIR, "model_architecture.pth"))
+
     return model
 
 if __name__ == "__main__":
+    print(sys.path)
     config = Config()
-    config.DATA_PATH = "datasets/raw/yfinance_test.csv"
+    # config.DATA_PATH = "datasets/raw/yfinance_test.csv"
+    config.DATA_PATH = "/home/yagyik/Dropbox/finance_trials/HMSMC_repo_and_aux/tiingo_downloader/dataset_extensive/NYSE_1_Jan_2016_to_1_Jan_2024_1min/"
+    config.SOURCE_TYPE = "compressed"
     config.PERFORM_CLEANING = True
-    config.NUM_EPOCHS = 1000
+    config.LOG_SAVE_DIR = "logs"
+    config.NUM_EPOCHS = 200
     config.LEARNING_RATE = 1e-5
-    final_model = train_model(config)
+    config.USE_TRAINING_LOGGER = True
+
+
+
+    parser = argparse.ArgumentParser(description="Evaluate LSTM model predictions.")
+    # parser.add_argument("--model_path", type=str, required=True, help="Path to the best model file.")
+    parser.add_argument("--train_data_path", type=str, required=True, help="Path to the train dataset file.")
+    parser.add_argument("--test_data_path", type=str, required=True, help="Path to the test dataset file.")
+
+    
+    final_model = train_model(config,args=parser.parse_args())
+

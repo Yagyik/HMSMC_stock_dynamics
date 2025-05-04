@@ -6,3 +6,5 @@ tiingo
 yfinance
 matplotlib
 seaborn
+pyarrow
+fastparquet

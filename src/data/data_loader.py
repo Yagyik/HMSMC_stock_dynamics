@@ -49,6 +49,7 @@ class TimeSeriesDataset(Dataset):
         else:
             # We already have a DataFrame
             df = data_frame
+        self.df = df
 
         # 2) Process the DataFrame to separate out date/time columns from numeric columns
         self.dates = None
@@ -74,7 +75,8 @@ class TimeSeriesDataset(Dataset):
         self.numeric_data = df[numeric_cols].values.astype(np.float32)
 
         # 4) Create sequences & targets
-        self.sequences, self.targets = self._create_sequences(self.numeric_data, seq_len, chunk_size)
+        self.sequences, self.targets = self._create_sequences(self.numeric_data,
+         seq_len, chunk_size)
 
     @staticmethod
     def load_file_to_df(file_path, source):
@@ -84,18 +86,50 @@ class TimeSeriesDataset(Dataset):
         """
         ext = os.path.splitext(file_path)[1].lower()
 
-        if source in ["csv", "yfinance", "tiingo"]:
-            df = pd.read_csv(file_path)
-        elif source == "compressed":
-            if ext == ".parquet":
-                df = pd.read_parquet(file_path)
-            elif ext in [".h5", ".hdf5"]:
-                df = pd.read_hdf(file_path, key="data")
+        if os.path.isfile(file_path):
+            # If file_path is a file, read it directly
+            if source in ["csv", "yfinance", "tiingo"]:
+                df = pd.read_csv(file_path)
+            elif source == "compressed":
+                if ext == ".parquet":
+                    df = pd.read_parquet(file_path)
+                elif ext in [".h5", ".hdf5"]:
+                    df = pd.read_hdf(file_path, key="data")
+                else:
+                    raise ValueError(f"Unsupported compressed file format: {ext}")
             else:
-                raise ValueError(f"Unsupported compressed file format: {ext}")
+                raise ValueError(f"Unsupported source type: {source}")
+        elif os.path.isdir(file_path):
+            # If file_path is a directory, process all files with the desired extension
+            if source == "compressed":
+                dfs = []
+                for file in os.listdir(file_path):
+                    file_ext = os.path.splitext(file)[1].lower()
+                    if file_ext == ".parquet":
+                        temp_df = pd.read_parquet(os.path.join(file_path, file))
+                        # print(temp_df.head())
+                        # print(temp_df.index)
+                        ticker_string = temp_df["ticker"].iloc[0] if "ticker" in temp_df.columns else ""
+                        temp_df = temp_df.rename(columns=lambda col: f"{col}_{ticker_string}" if col not in ["ticker"] else col)
+                        dfs.append(temp_df)
+                    elif file_ext in [".h5", ".hdf5"]:
+                        temp_df = pd.read_hdf(os.path.join(file_path, file), key="data")
+                        # print(temp_df.head())
+                        dfs.append(temp_df)
+                    if not dfs:
+                        raise ValueError(f"No files with the desired extension found in directory: {file_path}")
+                # Concatenate all DataFrames and handle overlapping index columns
+                df = pd.concat(dfs, axis=1)
+                # Drop any column named "ticker"
+                df = df.drop(columns=["ticker"], errors="ignore")
+                df = df.loc[:, ~df.columns.duplicated()]  # Remove duplicate columns
+                # print(df.columns)
+            else:
+                raise ValueError(f"Directory processing is only supported for 'compressed' source type.")
         else:
-            raise ValueError(f"Unsupported source type: {source}")
-
+            raise ValueError(f"Invalid file_path: {file_path} is neither a file nor a directory.")
+        print("columns of df",df.columns)
+        df.to_csv("spam.csv", index=True)
         return df
 
     @classmethod
@@ -137,6 +171,7 @@ class TimeSeriesDataset(Dataset):
                     seq_list.append(seq)
                     tgt_list.append(tgt)
                 start_idx = end_idx
+            print(len(seq_list),len(tgt_list))
             return np.array(seq_list), np.array(tgt_list)
 
     def __len__(self):

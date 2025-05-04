@@ -37,7 +37,7 @@ def forecasting_loss(predictions, targets):
     Returns:
         loss (Tensor): A scalar tensor representing the MSE loss.
     """
-    mse_loss = nn.MSELoss()
+    mse_loss = nn.MSELoss(reduction="mean")
     return mse_loss(predictions, targets)
 
 

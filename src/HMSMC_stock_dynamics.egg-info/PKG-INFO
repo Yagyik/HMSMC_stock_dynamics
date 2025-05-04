@@ -1,4 +1,4 @@
-Metadata-Version: 2.2
+Metadata-Version: 2.4
 Name: HMSMC_stock_dynamics
 Version: 0.1.0
 Classifier: Programming Language :: Python :: 3
@@ -16,6 +16,8 @@ Requires-Dist: seaborn
 Requires-Dist: tqdm
 Requires-Dist: jupyter
 Requires-Dist: scipy
+Requires-Dist: pyarrow
+Requires-Dist: fastparquet
 Dynamic: classifier
 Dynamic: requires-dist
 Dynamic: requires-python
