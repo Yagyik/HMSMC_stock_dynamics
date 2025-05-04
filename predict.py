@@ -1,5 +1,6 @@
 import os
 import numpy as np
+import pandas as pd
 import pickle
 import argparse
 import torch
@@ -200,6 +201,19 @@ def main():
 
         predictions, actuals, datetimes = rolling_forecast(model, test_dataset, seq_len,
                                                             start_index=args.start_index)
+        
+        # Create a DataFrame with predictions and actuals indexed by datetimes
+        results_df = pd.DataFrame({
+            "datetime": datetimes,
+            **{f"prediction_{test_dataset.columns[i]}": predictions[:, i] for i in range(predictions.shape[1])},
+            **{f"actual_{test_dataset.columns[i]}": actuals[:, i] for i in range(actuals.shape[1])}
+        })
+        results_df.set_index("datetime", inplace=True)
+
+        # Write the DataFrame to a file
+        output_file = os.path.join(args.output_dir, f"results_seq{seq_len}.csv")
+        results_df.to_csv(output_file)
+        print(f"Results saved to {output_file}")
 
         col_list = [int(x) for x in args.columns]
         print(args.columns,col_list)
