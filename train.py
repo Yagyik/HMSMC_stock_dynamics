@@ -14,7 +14,7 @@ from torch.utils.data import DataLoader
 # sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), 'src')))
 
 # sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), 'src')))
-sys.path.append('/home/yagyik/Dropbox/finance_trials/HMSMC_repo_and_aux/HMSMC_stock_dynamics')
+sys.path.append('~/HMSMC_repo_and_aux/HMSMC_stock_dynamics')
 
 # print(sys.path)
 # from HMSMC_stock_dynamics.src.config.config_simple import Config
