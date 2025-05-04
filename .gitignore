@@ -8,8 +8,8 @@ __pycache__/
 .ipynb_checkpoints/
 
 # Ignore logs and temporary files
-logs/
-*.log
+# logs/
+# *.log
 *.tmp
 
 # Ignore data files
