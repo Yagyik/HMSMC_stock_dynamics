@@ -15,13 +15,16 @@
    
    echo "Virtual environment 'finance-venv' created and requirements installed."
 
-# 2) Generate a prediction by running from parent of HMSMC_stock_dynamics (check paths)
+# 2) Generate predictions and visualise
+   
+a) Run from parent of HMSMC_stock_dynamics (check paths)
 
    python3 HMSMC_stock_dynamics/predict.py --model_path HMSMC_stock_dynamics/logs/best_model.pth --train_data_path tiingo_downloader/dataset_extensive/NYSE_1_Jan_2016_to_1_Jan_2024_1min/ --test_data_path tiingo_downloader/dataset_extensive_test/NYSE_2_Jan_2024_to_31_Dec_2024_1min/ --seq_lens 500 --columns 1 --output_dir test_outputs/
+ 
+b) Check the predictions vs actuals in test_output/results_<seq_len>.csv
 
-# 3) Check the predictions vs actuals in test_output/results_<seq_len>.csv
 
------- background ----- 
+# ------ background ----- 
 
 # Stock Market Forecasting Codebase
 
