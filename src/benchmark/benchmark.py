@@ -11,25 +11,41 @@ class RegressionEvaluator:
         self.predicted_df = predicted_df.sort_index()
         self._validate_inputs(actual_df, predicted_df)
 
+    @staticmethod
+    def _validate_index(df: pd.DataFrame):
+        expected_indices = {
+            BenchmarkInferenceSchema.TIMESTAMP.value,
+            BenchmarkInferenceSchema.SYMBOL.value
+        }
+        if not (set(df.index.names) == expected_indices):
+            missing_indices = expected_indices - set(df.index.names)
+            raise ValueError(f"Input df is missing indices: {missing_indices}.")
+
+    def _validate_columns(self, df: pd.DataFrame, df_name: str):
+        if not (set(self.columns) == set(df.columns)):
+            raise ValueError(f"Expected columns {self.columns} but got {set(df.columns)} in {df_name}.")
+
     def _validate_inputs(self, actual_df: pd.DataFrame, predicted_df: pd.DataFrame):
-        if not actual_df.index.equals(predicted_df.index):
-            raise ValueError("Indices of actual and predicted dataframes must match exactly (symbol, timestamp).")
-        for col in self.columns:
-            if (col not in actual_df.columns) or (col not in predicted_df.columns):
-                raise ValueError(f"Missing required column: {col}")
+        self._validate_index(actual_df)
+        self._validate_index(predicted_df)
+        self._validate_columns(actual_df, "ground-truth dataframe")
+        self._validate_columns(predicted_df, "predicted dataframe")
 
-    def _compute_metric(self, metric_func, **kwargs):
-        results = {}
-        for col in self.columns:
-            actual = self.actual_df[col]
-            predicted = self.predicted_df[col]
-            results[col] = metric_func(actual, predicted, **kwargs)
-        return results
+    @staticmethod
+    def _average_metric_by_date(df):
+        df["date"] = df.index.get_level_values(BenchmarkInferenceSchema.TIMESTAMP.value).date
+        df = df.groupby([BenchmarkInferenceSchema.SYMBOL.value, "date"]).mean()
+        df.index.names = [BenchmarkInferenceSchema.SYMBOL.value, BenchmarkInferenceSchema.TIMESTAMP.value]
+        return df
 
-    def mae(self):
-        return self._compute_metric(mean_absolute_error)
+    def absolute_error(self, average_by_day: bool = False):
+        abs_error = (self.actual_df - self.predicted_df).abs()
+        if average_by_day:
+            abs_error = self._average_metric_by_date(abs_error)
 
-    def rmse(self):
+        return abs_error
+
+    def squared_error(self):
         return self._compute_metric(lambda y_true, y_pred: mean_squared_error(y_true, y_pred, squared=False))
 
     def mape(self):
