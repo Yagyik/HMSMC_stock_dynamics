@@ -55,6 +55,3 @@ class BenchmarkInferenceSchema(Enum):
             cls.MODEL: str,
             cls.HORIZON: int,
         }
-
-
-schema = BenchmarkInferenceSchema.TIMESTAMP
