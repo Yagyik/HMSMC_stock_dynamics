@@ -1,15 +1,26 @@
 import pandas as pd
 import numpy as np
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-from src.benchmark.benchmark_schema import BenchmarkInferenceSchema
+from src.benchmark.constants import BenchmarkInferenceSchema, BenchmarkAggregation, BenchmarkReduction
 
 
 class RegressionEvaluator:
-    def __init__(self, actual_df: pd.DataFrame, predicted_df: pd.DataFrame):
+    def __init__(
+            self,
+            actual_df: pd.DataFrame,
+            predicted_df: pd.DataFrame,
+            aggregation: str = BenchmarkAggregation.NONE.value,
+            reduction: str = BenchmarkReduction.NONE.value,
+    ):
+        assert aggregation in {agg.value for agg in BenchmarkAggregation}
+        assert reduction in {red.value for red in BenchmarkReduction}
+
+        self.aggregation = aggregation
+        self.reduction = reduction
         self.columns = BenchmarkInferenceSchema.price_fields()
         self.actual_df = actual_df.sort_index()
         self.predicted_df = predicted_df.sort_index()
-        self._validate_inputs(actual_df, predicted_df)
+        self._validate_inputs(self.actual_df, self.predicted_df)
+        self._aggregation_key = "time_group"
 
     @staticmethod
     def _validate_index(df: pd.DataFrame):
@@ -31,25 +42,87 @@ class RegressionEvaluator:
         self._validate_columns(actual_df, "ground-truth dataframe")
         self._validate_columns(predicted_df, "predicted dataframe")
 
-    @staticmethod
-    def _average_metric_by_date(df):
-        df["date"] = df.index.get_level_values(BenchmarkInferenceSchema.TIMESTAMP.value).date
-        df = df.groupby([BenchmarkInferenceSchema.SYMBOL.value, "date"]).mean()
-        df.index.names = [BenchmarkInferenceSchema.SYMBOL.value, BenchmarkInferenceSchema.TIMESTAMP.value]
+    def _get_timestamp_aggregation_key(self) -> str | None:
+        key = self.aggregation
+        if key == BenchmarkAggregation.DAY.value:
+            return "D"
+        elif key == BenchmarkAggregation.HOUR.value:
+            return "H"
+        elif key == BenchmarkAggregation.MINUTE.value:
+            return "M"
+        elif key == BenchmarkAggregation.NONE.value:
+            return
+        else:
+            raise ValueError(f"Unrecognized aggregation key {key}")
+
+    def _get_timestamp_reduction_key(self) -> str | None:
+        key = self.reduction
+        if key == BenchmarkReduction.NONE.value:
+            return
+        else:
+            return key
+
+    def _set_timestamp_aggregation(self, df):
+        timestamps = df.index.get_level_values(BenchmarkInferenceSchema.TIMESTAMP.value)
+        time_group = timestamps.floor(self._get_timestamp_aggregation_key())
+        df[self._aggregation_key] = time_group
         return df
 
-    def absolute_error(self, average_by_day: bool = False):
-        abs_error = (self.actual_df - self.predicted_df).abs()
-        if average_by_day:
-            abs_error = self._average_metric_by_date(abs_error)
+    def _aggregate_and_reduce(self, df):
+        # Check that both are none or both are non-null
+        assert (self.aggregation == BenchmarkAggregation.NONE.value) == (
+                self.reduction == BenchmarkReduction.NONE.value)
 
-        return abs_error
+        if self.aggregation == BenchmarkAggregation.NONE.value:
+            return df
 
-    def squared_error(self):
-        return self._compute_metric(lambda y_true, y_pred: mean_squared_error(y_true, y_pred, squared=False))
+        df = self._set_timestamp_aggregation(df)
+        reduction = self._get_timestamp_reduction_key()
 
-    def mape(self):
-        return self._compute_metric(lambda y_true, y_pred: np.mean(np.abs((y_true - y_pred) / y_true)) * 100)
+        df = df.groupby([BenchmarkInferenceSchema.SYMBOL.value, self._aggregation_key]).agg(reduction)
+        df = df.rename_axis(index={self._aggregation_key: BenchmarkInferenceSchema.TIMESTAMP.value})
+
+        return df
+
+    def absolute_error(self, percentage=False):
+        _error = (self.actual_df - self.predicted_df).abs()
+        if percentage:
+            _error = (_error / self.actual_df.abs()) * 100
+
+        _error = self._aggregate_and_reduce(_error)
+
+        return _error
+
+    def root_squared_error(self):
+        _error = (self.actual_df - self.predicted_df) ** 2
+        _error = self._aggregate_and_reduce(_error)
+        return np.sqrt(_error)
 
     def r2(self):
-        return self._compute_metric(r2_score)
+        # Join the two dataframes
+        assert self.aggregation != BenchmarkAggregation.NONE.value, "aggregation cannot be none for r2"
+
+        joined = self.actual_df.join(self.predicted_df, lsuffix="_actual", rsuffix="_pred")
+        joined = self._set_timestamp_aggregation(joined)
+
+        def _column_wise_r2(group, columns):
+            result = {
+                col: group[f"{col}_actual"].corr(group[f"{col}_pred"])
+                for col in columns
+            }
+            return result
+
+        result = joined.groupby(
+            [
+                BenchmarkInferenceSchema.SYMBOL.value,
+                self._aggregation_key
+            ]
+        ).apply(
+            _column_wise_r2,
+            columns=self.columns
+        )
+
+        result = pd.DataFrame(result.tolist(), index=result.index)
+        result = result.rename_axis(index={self._aggregation_key: BenchmarkInferenceSchema.TIMESTAMP.value})
+
+        return result

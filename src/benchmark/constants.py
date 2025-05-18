@@ -1,6 +1,19 @@
 from enum import Enum
 from datetime import datetime
 
+class BenchmarkReduction(Enum):
+    MEAN = "mean"
+    MAX = "max"
+    MIN = "min"
+    MEDIAN = "median"
+    NONE = "none"
+
+class BenchmarkAggregation(Enum):
+    DAY = "day"
+    HOUR = "hour"
+    MINUTE = "min"
+    NONE = "none"
+
 
 class BenchmarkInferenceSchema(Enum):
     TIMESTAMP = "timestamp"

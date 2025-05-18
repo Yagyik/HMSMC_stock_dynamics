@@ -1,4 +1,4 @@
-from src.benchmark.benchmark_schema import BenchmarkInferenceSchema
+from src.benchmark.constants import BenchmarkInferenceSchema
 
 import pandas as pd
 from datetime import datetime, time
