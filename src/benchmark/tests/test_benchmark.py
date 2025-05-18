@@ -46,18 +46,18 @@ def test_absolute_error_zero_for_same_data(mock_data):
     )
     assert (evaluator.absolute_error() == 0).all().all()
 
-
-def test_absolute_error_constant_offset(mock_data):
+@pytest.mark.parametrize("offset", [0, 1, 10])
+def test_absolute_error_constant_offset(mock_data, offset):
     actual = mock_data
-    predicted = actual + 1  # uniform offset
+    predicted = actual + offset  # uniform offset
     evaluator = RegressionEvaluator(actual, predicted)
     error_df = evaluator.absolute_error()
-    assert np.allclose(error_df.values, 1)
+    assert np.allclose(error_df.values, offset)
 
-
-def test_hourly_aggregation_mean_reduction(mock_data):
+@pytest.mark.parametrize("offset", [0, 1, 10])
+def test_hourly_aggregation_mean_reduction(mock_data, offset):
     actual = mock_data
-    predicted = actual + 1
+    predicted = actual + offset
     evaluator = RegressionEvaluator(
         actual_df=actual,
         predicted_df=predicted,
@@ -66,12 +66,16 @@ def test_hourly_aggregation_mean_reduction(mock_data):
     )
     error_df = evaluator.absolute_error()
 
-    assert np.allclose(error_df.values, 1)
+    assert np.allclose(error_df.values, offset)
 
     time_index = error_df.index.get_level_values(BenchmarkInferenceSchema.TIMESTAMP.value)
 
     # check that time-index is floored to hour
     assert (time_index.second == 0).all() & (time_index.minute == 0).all(), "timestamp should be hourly aligned"
+
+    assert isinstance(error_df.index, pd.MultiIndex)
+    assert BenchmarkInferenceSchema.TIMESTAMP.value in error_df.index.names
+    assert BenchmarkInferenceSchema.SYMBOL.value in error_df.index.names
 
 
 def test_r2_perfect(mock_data):
@@ -90,6 +94,26 @@ def test_r2_perfect(mock_data):
     time_index = r2_df.index.get_level_values(BenchmarkInferenceSchema.TIMESTAMP.value)
     # check that time-index is floored to hour
     assert (time_index.second == 0).all() and (time_index.minute == 0).all(), "Timestamp should be hourly-aligned"
+
+
+def test_r2_with_noise(mock_data):
+    np.random.seed(42)
+    actual = mock_data
+    predicted = actual + np.random.normal(0, 0.5, size=actual.shape)
+
+    evaluator = RegressionEvaluator(
+        actual_df=actual,
+        predicted_df=predicted,
+        aggregation=BenchmarkAggregation.DAY.value,
+        reduction=BenchmarkReduction.MEAN.value
+    )
+    r2_df = evaluator.r2().dropna()
+    assert (r2_df.values <= 1.0).all()
+    assert (r2_df.values >= -1.0).all()
+
+    time_index = r2_df.index.get_level_values(BenchmarkInferenceSchema.TIMESTAMP.value)
+    assert ((time_index.hour == 0).all() & (time_index.minute == 0).all() & (
+            time_index.second == 0).all()), "Timestamp should be day-aligned"
 
 
 def test_invalid_index_raises():
@@ -115,3 +139,12 @@ def test_missing_column_raises():
 
     with pytest.raises(ValueError):
         RegressionEvaluator(df, df)
+
+
+def test_sort_index_order(mock_data):
+    actual = mock_data
+    predcted = actual.iloc[np.random.permutation(len(actual))]
+
+    evaluator = RegressionEvaluator(actual, predcted)
+
+    assert evaluator.actual_df.index.equals(evaluator.predicted_df.index)
