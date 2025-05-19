@@ -8,3 +8,4 @@ matplotlib
 seaborn
 pyarrow
 fastparquet
+pytest

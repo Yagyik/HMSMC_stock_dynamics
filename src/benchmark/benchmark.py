@@ -47,7 +47,7 @@ class RegressionEvaluator:
         if key == BenchmarkAggregation.DAY.value:
             return "D"
         elif key == BenchmarkAggregation.HOUR.value:
-            return "H"
+            return "h"
         elif key == BenchmarkAggregation.MINUTE.value:
             return "M"
         elif key == BenchmarkAggregation.NONE.value:
@@ -106,6 +106,9 @@ class RegressionEvaluator:
         joined = self._set_timestamp_aggregation(joined)
 
         def _column_wise_r2(group, columns):
+            if len(group) < 2:
+                return {col: np.nan for col in columns}
+
             result = {
                 col: group[f"{col}_actual"].corr(group[f"{col}_pred"])
                 for col in columns
@@ -119,7 +122,8 @@ class RegressionEvaluator:
             ]
         ).apply(
             _column_wise_r2,
-            columns=self.columns
+            columns=self.columns,
+            include_groups=False
         )
 
         result = pd.DataFrame(result.tolist(), index=result.index)
