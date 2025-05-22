@@ -6,3 +6,4 @@ tiingo
 yfinance
 matplotlib
 seaborn
+numpy

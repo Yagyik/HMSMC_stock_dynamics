@@ -1,5 +1,4 @@
-import datetime
-
+from datetime import datetime, time
 import pytest
 import pandas as pd
 import numpy as np
@@ -46,6 +45,7 @@ def test_absolute_error_zero_for_same_data(mock_data):
     )
     assert (evaluator.absolute_error() == 0).all().all()
 
+
 @pytest.mark.parametrize("offset", [0, 1, 10])
 def test_absolute_error_constant_offset(mock_data, offset):
     actual = mock_data
@@ -53,6 +53,7 @@ def test_absolute_error_constant_offset(mock_data, offset):
     evaluator = RegressionEvaluator(actual, predicted)
     error_df = evaluator.absolute_error()
     assert np.allclose(error_df.values, offset)
+
 
 @pytest.mark.parametrize("offset", [0, 1, 10])
 def test_hourly_aggregation_mean_reduction(mock_data, offset):
@@ -132,7 +133,7 @@ def test_missing_column_raises():
             "low": [0.5],
             "close": [1.5],
             "symbol": ["AAPL"],
-            "timestamp": [datetime.datetime(2025, 3, 2, 1, 23)],
+            "timestamp": [datetime(2025, 3, 2, 1, 23)],
         }
     )  # Not a MultiIndex
     df = df.set_index(["symbol", "timestamp"])
@@ -146,5 +147,44 @@ def test_sort_index_order(mock_data):
     predcted = actual.iloc[np.random.permutation(len(actual))]
 
     evaluator = RegressionEvaluator(actual, predcted)
+
+    assert evaluator.actual_df.index.equals(evaluator.predicted_df.index)
+
+
+def test_market_open_close():
+    start_dt = datetime(2024, 1, 1)
+    end_dt = datetime(2024, 1, 1)  # market opens at 9:30 AM
+
+    data_generator = MockInferenceDataGenerator(
+        symbols=["AAPL", "GOOG"],
+        start_date=start_dt,
+        end_date=end_dt,
+        market_open=time(9, 30),
+        market_close=time(16, 0),
+    )
+
+    actual_df = data_generator.generate()
+    predicted_df = data_generator.generate()
+
+    assert (
+            actual_df.index.get_level_values(BenchmarkInferenceSchema.TIMESTAMP.value).time >= time(11, 0)
+    ).any()
+    assert (
+            actual_df.index.get_level_values(BenchmarkInferenceSchema.TIMESTAMP.value).time <= time(13, 0)
+    ).any()
+
+    evaluator = RegressionEvaluator(
+        actual_df=actual_df,
+        predicted_df=predicted_df,
+        aggregation=BenchmarkAggregation.NONE.value,
+        reduction=BenchmarkReduction.NONE.value,
+        market_open_time=time(11, 0),
+        market_close_time=time(13, 0)
+    )
+
+    assert (evaluator.actual_df.index.get_level_values(BenchmarkInferenceSchema.TIMESTAMP.value).time >= time(11,
+                                                                                                              0)).all()
+    assert (evaluator.actual_df.index.get_level_values(BenchmarkInferenceSchema.TIMESTAMP.value).time <= time(13,
+                                                                                                              0)).all()
 
     assert evaluator.actual_df.index.equals(evaluator.predicted_df.index)
